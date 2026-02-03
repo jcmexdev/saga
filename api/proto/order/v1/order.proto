@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package order.v1;
+
+option go_package = "github.com/jcmexdev/ecommerce-sagas/internal/genproto/order/v1;orderv1";
+
+message OrderItem {
+  string product_id = 1;
+  int32 quantity = 2;
+  double unit_price = 3; // se convertirá en float64 en Go
+}
+
+message Order {
+  string id = 1;
+  string customer_id = 2;
+  repeated OrderItem items = 3;
+  string status = 4;        // pending, confirmed, cancelled, etc.
+  double total_amount = 5;  // suma de quantity * unit_price
+}
+
+message CreateOrderRequest {
+  string customer_id = 1;
+  repeated OrderItem items = 2;
+} 
+
+message CreateOrderResponse {
+  Order order = 1;
+}
+
+message GetOrderRequest {
+  string id = 1;
+}
+
+message GetOrderResponse {
+  Order order = 1;
+}
+
+service OrderService {
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+}
