@@ -1,0 +1,16 @@
+FROM golang:1.24-alpine
+
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN go build -gcflags="all=-N -l" -o order-service ./cmd/order-service
+
+EXPOSE 9090 40000
+
+CMD ["dlv", "--listen=:40000", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "./order-service", "--continue"]

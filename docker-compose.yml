@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: ./build/api-gateway/Dockerfile
+    container_name: api-gateway
+    depends_on:
+      - order-service
+    environment:
+      - TZ=Etc/UTC
+      - ORDER_SERVICE_ADDR=order-service:9090
+      - PAYMENT_SERVICE_ADDR=payment-service:9091
+      - INVENTORY_SERVICE_ADDR=inventory-service:9092
+    ports:
+      - "8080:8080"
+      - "40001:40000"
+    security_opt:
+      - "seccomp:unconfined"
+    cap_add:
+      - SYS_PTRACE
+
+  order-service:
+    build:
+      context: .
+      dockerfile: ./build/order-service/Dockerfile
+    container_name: order-service
+    ports:
+      - "40002:40000"
+    environment:
+      - TZ=Etc/UTC
+      - PORT=9090
+    security_opt:
+      - "seccomp:unconfined"
+    cap_add:
+      - SYS_PTRACE
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: ./build/inventory-service/Dockerfile
+    container_name: inventory-service
+    ports:
+      - "40003:40000"
+    environment:
+      - TZ=Etc/UTC
+      - PORT=9092
+    security_opt:
+      - "seccomp:unconfined"
+    cap_add:
+      - SYS_PTRACE
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: ./build/payment-service/Dockerfile
+    container_name: payment-service
+    environment:
+      - TZ=Etc/UTC
+      - PORT=9091
+    ports:
+      - "40004:40000"
+    security_opt:
+      - "seccomp:unconfined"
+    cap_add:
+      - SYS_PTRACE
+
+  redis-cache:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"

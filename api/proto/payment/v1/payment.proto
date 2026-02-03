@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package payment.v1;
+
+// Option for Go package generation
+option go_package = "github.com/jcmexdev/ecommerce-sagas/internal/genproto/payment/v1;paymentv1";
+
+// Payment handles all financial transactions related to orders.
+// It is designed to be called by the Order Saga Orchestrator.
+service Payment {
+  // Charge processes a payment for a given order.
+  // This operation must be idempotent based on the order_id and
+  // the idempotency key provided in the gRPC metadata.
+  rpc Charge(ChargeRequest) returns (ChargeResponse);
+
+  // Refund reverses a previously successful charge.
+  // This is used as a compensation step in the Order Saga
+  // when subsequent steps (like inventory reservation) fail.
+  rpc Refund(RefundRequest) returns (RefundResponse);
+}
+
+// ChargeRequest contains the necessary data to perform a payment.
+message ChargeRequest {
+  // Unique identifier for the order being paid.
+  string order_id = 1;
+  // Total amount to be charged to the customer.
+  double amount = 2;
+}
+
+// ChargeResponse returns the result of the payment attempt.
+message ChargeResponse {
+  // Indicates if the payment was successfully processed.
+  bool success = 1;
+}
+
+// RefundRequest contains the reference to the order that needs a refund.
+message RefundRequest {
+  // The order_id that was previously charged and now needs compensation.
+  string order_id = 1;
+}
+
+// RefundResponse returns the result of the refund attempt.
+message RefundResponse {
+  // Indicates if the refund was successfully processed.
+  bool success = 1;
+}
