@@ -40,3 +40,7 @@ func (f fakeOrderClient) GetOrder(ctx context.Context, id string) (*entity.Order
 	panic(" implement me")
 	return nil, fmt.Errorf("not implemented in fake client")
 }
+
+func (f fakeOrderClient) UpdateStatus(ctx context.Context, id, status string) error {
+	panic(" implement me")
+}

@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package inventory.v1;
+
+option go_package = "github.com/jcmexdev/ecommerce-sagas/internal/genproto/inventory/v1;inventoryv1";
+
+// Inventory manages product availability and stock reservations.
+// It ensures that items are locked during the order process and
+// released if the order cannot be completed.
+service Inventory {
+  // Reserve locks the requested quantity of items for a specific order.
+  // If the items are unavailable, it returns success = false.
+  // This operation is idempotent based on the order_id.
+  rpc Reserve(ReserveRequest) returns (ReserveResponse);
+
+  // Release unlocks items previously reserved for an order.
+  // This is the compensation step used when a payment fails
+  // or the order is cancelled by the orchestrator.
+  rpc Release(ReleaseRequest) returns (ReleaseResponse);
+}
+
+// StockItem represents a specific product and the amount to be handled.
+message StockItem {
+  // Unique identifier for the product.
+  string product_id = 1;
+  // The number of units to reserve or release.
+  int32 quantity = 2;
+}
+
+// ReserveRequest contains the items to be locked for a specific order.
+message ReserveRequest {
+  // Unique identifier for the order, used as a reference for the reservation.
+  string order_id = 1;
+  // List of products and quantities to be reserved.
+  repeated StockItem items = 2;
+}
+
+// ReserveResponse indicates the outcome of the reservation attempt.
+message ReserveResponse {
+  // True if all items were successfully reserved, false if there was insufficient stock.
+  bool success = 1;
+}
+
+// ReleaseRequest contains the reference to the order whose stock should be freed.
+message ReleaseRequest {
+  // The order_id whose items should be returned to the available stock.
+  string order_id = 1;
+}
+
+// ReleaseResponse indicates the outcome of the release operation.
+message ReleaseResponse {
+  // True if the stock was successfully released or was already free.
+  bool success = 1;
+}

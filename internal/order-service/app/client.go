@@ -11,18 +11,17 @@ import (
 	orderv1 "github.com/jcmexdev/ecommerce-sagas/internal/genproto/order/v1"
 )
 
-// orderServer implementa orderv1.OrderServiceServer
+// orderServer implementa orderv1.OrderInfoServiceServer
 type orderServer struct {
-	orderv1.UnimplementedOrderServiceServer
-
+	orderv1.UnimplementedOrderServer
 	mu     sync.RWMutex
-	orders map[string]*orderv1.Order
+	orders map[string]*orderv1.OrderInfo
 }
 
 // NewOrderServer es el constructor
 func NewOrderServer() *orderServer {
 	return &orderServer{
-		orders: make(map[string]*orderv1.Order),
+		orders: make(map[string]*orderv1.OrderInfo),
 	}
 }
 
@@ -39,11 +38,11 @@ func (s *orderServer) CreateOrder(ctx context.Context, req *orderv1.CreateOrderR
 		total += float64(item.GetQuantity()) * item.GetUnitPrice()
 	}
 
-	order := &orderv1.Order{
+	order := &orderv1.OrderInfo{
 		Id:          id,
 		CustomerId:  req.GetCustomerId(),
 		Items:       req.GetItems(),
-		Status:      "pending",
+		Status:      orderv1.Status_PENDING,
 		TotalAmount: total,
 	}
 
@@ -66,5 +65,23 @@ func (s *orderServer) GetOrder(ctx context.Context, req *orderv1.GetOrderRequest
 
 	return &orderv1.GetOrderResponse{
 		Order: order,
+	}, nil
+}
+
+func (s *orderServer) UpdateOrderStatus(ctx context.Context, req *orderv1.UpdateOrderStatusRequest) (*orderv1.UpdateOrderStatusResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// verify if order exist
+
+	order, exist := s.orders[req.GetId()]
+
+	if !exist {
+		return nil, status.Errorf(codes.NotFound, "order %s not found", req.GetId())
+	}
+
+	order.Status = req.GetStatus()
+
+	return &orderv1.UpdateOrderStatusResponse{
+		Success: true,
 	}, nil
 }

@@ -19,139 +19,191 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	OrderService_CreateOrder_FullMethodName = "/order.v1.OrderService/CreateOrder"
-	OrderService_GetOrder_FullMethodName    = "/order.v1.OrderService/GetOrder"
+	Order_CreateOrder_FullMethodName       = "/order.v1.Order/CreateOrder"
+	Order_GetOrder_FullMethodName          = "/order.v1.Order/GetOrder"
+	Order_UpdateOrderStatus_FullMethodName = "/order.v1.Order/UpdateOrderStatus"
 )
 
-// OrderServiceClient is the client API for OrderService service.
+// OrderClient is the client API for Order service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type OrderServiceClient interface {
+//
+// Order is the entry point for the e-commerce system.
+// It acts as the Saga Orchestrator, coordinating Payment and Inventory.
+type OrderClient interface {
+	// CreateOrder initiates a new purchase flow.
+	// It persists the order as PENDING and starts the orchestration saga.
 	CreateOrder(ctx context.Context, in *CreateOrderRequest, opts ...grpc.CallOption) (*CreateOrderResponse, error)
+	// GetOrder retrieves the current state of an order by its ID.
 	GetOrder(ctx context.Context, in *GetOrderRequest, opts ...grpc.CallOption) (*GetOrderResponse, error)
+	// UpdateOrderStatus update the order status
+	UpdateOrderStatus(ctx context.Context, in *UpdateOrderStatusRequest, opts ...grpc.CallOption) (*UpdateOrderStatusResponse, error)
 }
 
-type orderServiceClient struct {
+type orderClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewOrderServiceClient(cc grpc.ClientConnInterface) OrderServiceClient {
-	return &orderServiceClient{cc}
+func NewOrderClient(cc grpc.ClientConnInterface) OrderClient {
+	return &orderClient{cc}
 }
 
-func (c *orderServiceClient) CreateOrder(ctx context.Context, in *CreateOrderRequest, opts ...grpc.CallOption) (*CreateOrderResponse, error) {
+func (c *orderClient) CreateOrder(ctx context.Context, in *CreateOrderRequest, opts ...grpc.CallOption) (*CreateOrderResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateOrderResponse)
-	err := c.cc.Invoke(ctx, OrderService_CreateOrder_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Order_CreateOrder_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *orderServiceClient) GetOrder(ctx context.Context, in *GetOrderRequest, opts ...grpc.CallOption) (*GetOrderResponse, error) {
+func (c *orderClient) GetOrder(ctx context.Context, in *GetOrderRequest, opts ...grpc.CallOption) (*GetOrderResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetOrderResponse)
-	err := c.cc.Invoke(ctx, OrderService_GetOrder_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Order_GetOrder_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// OrderServiceServer is the server API for OrderService service.
-// All implementations must embed UnimplementedOrderServiceServer
-// for forward compatibility.
-type OrderServiceServer interface {
-	CreateOrder(context.Context, *CreateOrderRequest) (*CreateOrderResponse, error)
-	GetOrder(context.Context, *GetOrderRequest) (*GetOrderResponse, error)
-	mustEmbedUnimplementedOrderServiceServer()
+func (c *orderClient) UpdateOrderStatus(ctx context.Context, in *UpdateOrderStatusRequest, opts ...grpc.CallOption) (*UpdateOrderStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateOrderStatusResponse)
+	err := c.cc.Invoke(ctx, Order_UpdateOrderStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
-// UnimplementedOrderServiceServer must be embedded to have
+// OrderServer is the server API for Order service.
+// All implementations must embed UnimplementedOrderServer
+// for forward compatibility.
+//
+// Order is the entry point for the e-commerce system.
+// It acts as the Saga Orchestrator, coordinating Payment and Inventory.
+type OrderServer interface {
+	// CreateOrder initiates a new purchase flow.
+	// It persists the order as PENDING and starts the orchestration saga.
+	CreateOrder(context.Context, *CreateOrderRequest) (*CreateOrderResponse, error)
+	// GetOrder retrieves the current state of an order by its ID.
+	GetOrder(context.Context, *GetOrderRequest) (*GetOrderResponse, error)
+	// UpdateOrderStatus update the order status
+	UpdateOrderStatus(context.Context, *UpdateOrderStatusRequest) (*UpdateOrderStatusResponse, error)
+	mustEmbedUnimplementedOrderServer()
+}
+
+// UnimplementedOrderServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedOrderServiceServer struct{}
+type UnimplementedOrderServer struct{}
 
-func (UnimplementedOrderServiceServer) CreateOrder(context.Context, *CreateOrderRequest) (*CreateOrderResponse, error) {
+func (UnimplementedOrderServer) CreateOrder(context.Context, *CreateOrderRequest) (*CreateOrderResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateOrder not implemented")
 }
-func (UnimplementedOrderServiceServer) GetOrder(context.Context, *GetOrderRequest) (*GetOrderResponse, error) {
+func (UnimplementedOrderServer) GetOrder(context.Context, *GetOrderRequest) (*GetOrderResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOrder not implemented")
 }
-func (UnimplementedOrderServiceServer) mustEmbedUnimplementedOrderServiceServer() {}
-func (UnimplementedOrderServiceServer) testEmbeddedByValue()                      {}
+func (UnimplementedOrderServer) UpdateOrderStatus(context.Context, *UpdateOrderStatusRequest) (*UpdateOrderStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateOrderStatus not implemented")
+}
+func (UnimplementedOrderServer) mustEmbedUnimplementedOrderServer() {}
+func (UnimplementedOrderServer) testEmbeddedByValue()               {}
 
-// UnsafeOrderServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to OrderServiceServer will
+// UnsafeOrderServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to OrderServer will
 // result in compilation errors.
-type UnsafeOrderServiceServer interface {
-	mustEmbedUnimplementedOrderServiceServer()
+type UnsafeOrderServer interface {
+	mustEmbedUnimplementedOrderServer()
 }
 
-func RegisterOrderServiceServer(s grpc.ServiceRegistrar, srv OrderServiceServer) {
-	// If the following call pancis, it indicates UnimplementedOrderServiceServer was
+func RegisterOrderServer(s grpc.ServiceRegistrar, srv OrderServer) {
+	// If the following call pancis, it indicates UnimplementedOrderServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&OrderService_ServiceDesc, srv)
+	s.RegisterService(&Order_ServiceDesc, srv)
 }
 
-func _OrderService_CreateOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Order_CreateOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateOrderRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(OrderServiceServer).CreateOrder(ctx, in)
+		return srv.(OrderServer).CreateOrder(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: OrderService_CreateOrder_FullMethodName,
+		FullMethod: Order_CreateOrder_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OrderServiceServer).CreateOrder(ctx, req.(*CreateOrderRequest))
+		return srv.(OrderServer).CreateOrder(ctx, req.(*CreateOrderRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _OrderService_GetOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Order_GetOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetOrderRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(OrderServiceServer).GetOrder(ctx, in)
+		return srv.(OrderServer).GetOrder(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: OrderService_GetOrder_FullMethodName,
+		FullMethod: Order_GetOrder_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OrderServiceServer).GetOrder(ctx, req.(*GetOrderRequest))
+		return srv.(OrderServer).GetOrder(ctx, req.(*GetOrderRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// OrderService_ServiceDesc is the grpc.ServiceDesc for OrderService service.
+func _Order_UpdateOrderStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateOrderStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServer).UpdateOrderStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Order_UpdateOrderStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServer).UpdateOrderStatus(ctx, req.(*UpdateOrderStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Order_ServiceDesc is the grpc.ServiceDesc for Order service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var OrderService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "order.v1.OrderService",
-	HandlerType: (*OrderServiceServer)(nil),
+var Order_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "order.v1.Order",
+	HandlerType: (*OrderServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "CreateOrder",
-			Handler:    _OrderService_CreateOrder_Handler,
+			Handler:    _Order_CreateOrder_Handler,
 		},
 		{
 			MethodName: "GetOrder",
-			Handler:    _OrderService_GetOrder_Handler,
+			Handler:    _Order_GetOrder_Handler,
+		},
+		{
+			MethodName: "UpdateOrderStatus",
+			Handler:    _Order_UpdateOrderStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -14,12 +14,12 @@ import (
 
 // GRPCOrderService es el adapter que habla con el OrderService gRPC
 type GRPCOrderService struct {
-	client orderv1.OrderServiceClient
+	client orderv1.OrderClient
 }
 
 // NewGRPCOrderClient devuelve AL PORT, como tú querías.
 // En main crearás el client gRPC y lo pasas aquí.
-func NewGRPCOrderClient(client orderv1.OrderServiceClient) ports.OrderService {
+func NewGRPCOrderClient(client orderv1.OrderClient) ports.OrderService {
 	return &GRPCOrderService{client: client}
 }
 
@@ -89,11 +89,11 @@ func (s *GRPCOrderService) GetOrder(ctx context.Context, id string) (*entity.Ord
 
 // ===== Helpers de mapeo =====
 
-func mapProtoOrderToEntity(po *orderv1.Order) *entity.Order {
+func mapProtoOrderToEntity(po *orderv1.OrderInfo) *entity.Order {
 	return &entity.Order{
 		ID:         po.GetId(),
 		CustomerID: po.GetCustomerId(),
-		Status:     po.GetStatus(),
+		Status:     po.GetStatus().String(),
 		Total:      po.GetTotalAmount(),
 		Reason:     "", // el proto aún no lo expone
 		Items:      mapProtoItemsToEntity(po.GetItems()),

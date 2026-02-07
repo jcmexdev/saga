@@ -1,17 +1,6 @@
 version: "3.9"
 
 services:
-  order-service:
-    build:
-      context: .
-      dockerfile: ./build/order-service/Dockerfile
-    container_name: order-service
-    ports:
-      - "9090:9090"
-    # logs más legibles
-    environment:
-      - TZ=Etc/UTC
-
   api-gateway:
     build:
       context: .
@@ -20,9 +9,38 @@ services:
     depends_on:
       - order-service
     environment:
-      # muy importante: el gateway ya no habla con localhost,
-      # sino con el nombre del servicio dentro de la red de Docker
-      - ORDER_SERVICE_ADDR=order-service:9090
       - TZ=Etc/UTC
+      - ORDER_SERVICE_ADDR=order-service:9090
+      - PAYMENT_SERVICE_ADDR=payment-service:9091
+      - INVENTORY_SERVICE_ADDR=inventory-service:9092
     ports:
       - "8080:8080"
+
+  order-service:
+    build:
+      context: .
+      dockerfile: ./build/order-service/Dockerfile
+    container_name: order-service
+    environment:
+      - TZ=Etc/UTC
+      - PORT=9090
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: ./build/payment-service/Dockerfile
+    container_name: payment-service
+    # logs más legibles
+    environment:
+      - TZ=Etc/UTC
+      - PORT=9091
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: ./build/inventory-service/Dockerfile
+    container_name: inventory-service
+    # logs más legibles
+    environment:
+      - TZ=Etc/UTC
+      - PORT=9092
