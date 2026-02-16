@@ -1,32 +1,69 @@
 package main
 
 import (
-	"log"
+	"context"
+	"log/slog"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
 
 	inventoryv1 "github.com/jcmexdev/ecommerce-sagas/internal/genproto/inventory/v1"
 	inventoryservice "github.com/jcmexdev/ecommerce-sagas/internal/inventory-service"
+	"github.com/jcmexdev/ecommerce-sagas/internal/pkg/cache"
 	"github.com/jcmexdev/ecommerce-sagas/internal/pkg/interceptors"
-	"google.golang.org/grpc"
+	"github.com/jcmexdev/ecommerce-sagas/internal/pkg/telemetry"
 )
 
 func main() {
-	lis, err := net.Listen("tcp", ":9092")
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	shutdown, err := telemetry.SetupTracer(ctx, getEnv("OTEL_SERVICE_NAME", "inventory-service"))
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		slog.Error("failed to initialise tracer", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdown(shutdownCtx); err != nil {
+			slog.Error("tracer shutdown error", "error", err)
+		}
+	}()
+
+	addr := ":" + getEnv("PORT", "9092")
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		slog.Error("failed to listen", "addr", addr, "error", err)
+		os.Exit(1)
 	}
 
 	grpcServer := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.UnaryInterceptor(interceptors.TraceServerInterceptor()),
 	)
 
-	paymentClient := inventoryservice.NewClient()
+	redisAddr := getEnv("REDIS_ADDR", "redis-cache:6379")
+	redisCache := cache.NewRedisCache(redisAddr, "inventory")
+	inventorySrv := inventoryservice.NewClient(redisCache)
+	inventoryv1.RegisterInventoryServer(grpcServer, inventorySrv)
 
-	inventoryv1.RegisterInventoryServer(grpcServer, paymentClient)
-
-	log.Println("Inventory Service gRPC running on :9092")
+	slog.Info("inventory service gRPC running", "addr", addr)
 
 	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+		slog.Error("failed to serve", "error", err)
+		os.Exit(1)
 	}
+}
+
+func getEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }

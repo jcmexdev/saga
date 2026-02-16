@@ -9,15 +9,18 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+// AttachTracingMetadata extracts the request ID (from chi middleware) and
+// idempotency key (from the request header) and attaches them to the context
+// for propagation to downstream gRPC services.
 func AttachTracingMetadata(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestId := middleware.GetReqID(r.Context())
+		requestID := middleware.GetReqID(r.Context())
 		idempotencyKey := r.Header.Get(constants.HeaderXIdempotencyKey)
 
-		ctx := context.WithValue(r.Context(), constants.HeaderXRequestId, requestId)
-		ctx = context.WithValue(ctx, constants.HeaderXIdempotencyKey, idempotencyKey)
+		ctx := context.WithValue(r.Context(), constants.ContextKeyRequestID, requestID)
+		ctx = context.WithValue(ctx, constants.ContextKeyIdempotencyKey, idempotencyKey)
 		ctx = metadata.AppendToOutgoingContext(ctx, constants.HeaderXIdempotencyKey, idempotencyKey)
-		ctx = metadata.AppendToOutgoingContext(ctx, constants.HeaderXRequestId, requestId)
+		ctx = metadata.AppendToOutgoingContext(ctx, constants.HeaderXRequestId, requestID)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

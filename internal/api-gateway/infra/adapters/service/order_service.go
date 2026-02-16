@@ -10,13 +10,19 @@ import (
 	"github.com/jcmexdev/ecommerce-sagas/internal/api-gateway/core/ports"
 )
 
-type fakeOrderClient struct{}
+// Ensure fakeOrderService implements the port at compile time.
+var _ ports.OrderService = (*fakeOrderService)(nil)
 
-func NewFakeClient() ports.OrderService {
-	return fakeOrderClient{}
+// fakeOrderService is an in-memory implementation of ports.OrderService intended
+// for local development and manual testing only. Do NOT use in production.
+type fakeOrderService struct{}
+
+// NewFakeOrderService returns an in-memory OrderService for development/testing.
+func NewFakeOrderService() ports.OrderService {
+	return &fakeOrderService{}
 }
 
-func (f fakeOrderClient) CreateOrder(ctx context.Context, customerID, idempotencyKey string, items []entity.CreateOrderItem) (*entity.Order, error) {
+func (f *fakeOrderService) CreateOrder(ctx context.Context, customerID, idempotencyKey string, items []entity.CreateOrderItem) (*entity.Order, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	total := 0.0
 	for _, it := range items {
@@ -26,21 +32,14 @@ func (f fakeOrderClient) CreateOrder(ctx context.Context, customerID, idempotenc
 	return &entity.Order{
 		ID:         uuid.NewString(),
 		CustomerID: customerID,
-		Status:     "CONFIRMED",
+		Status:     "PENDING",
 		Total:      total,
-		Reason:     "",
 		Items:      items,
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}, nil
 }
 
-func (f fakeOrderClient) GetOrder(ctx context.Context, id string) (*entity.Order, error) {
-	// Para probar GET, si quieres puedes devolver un stub o un error
-	panic(" implement me")
-	return nil, fmt.Errorf("not implemented in fake client")
-}
-
-func (f fakeOrderClient) UpdateStatus(ctx context.Context, id, status string) error {
-	panic(" implement me")
+func (f *fakeOrderService) GetOrder(ctx context.Context, id string) (*entity.Order, error) {
+	return nil, fmt.Errorf("GetOrder: not implemented in fake service")
 }

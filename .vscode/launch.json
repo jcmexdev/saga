@@ -52,7 +52,6 @@
       "type": "go",
       "request": "attach",
       "mode": "remote",
-      "debugAdapter": "dlv-dap",
       "port": 40004,
       "host": "127.0.0.1",
       "substitutePath": [

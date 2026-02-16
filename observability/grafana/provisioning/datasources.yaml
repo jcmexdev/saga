@@ -1,0 +1,47 @@
+apiVersion: 1
+
+datasources:
+  # ── Prometheus ───────────────────────────────────────────────────────────────
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      exemplarTraceIdDestinations:
+        # Link exemplars in Prometheus charts directly to Tempo traces.
+        - name: trace_id
+          datasourceUid: tempo
+
+  # ── Tempo ────────────────────────────────────────────────────────────────────
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: prometheus   # enables the service map view
+      nodeGraph:
+        enabled: true
+      tracesToLogsV2:
+        datasourceUid: ""           # set to Loki uid if you add Loki later
+      tracesToMetrics:
+        datasourceUid: prometheus
+        tags:
+          - key: service.name
+            value: service
+        queries:
+          - name: "Request rate"
+            query: 'rate(traces_spanmetrics_calls_total{$$__tags}[5m])'
+          - name: "Error rate"
+            query: 'rate(traces_spanmetrics_calls_total{$$__tags, status_code="STATUS_CODE_ERROR"}[5m])'
+          - name: "P95 latency"
+            query: 'histogram_quantile(0.95, sum(rate(traces_spanmetrics_duration_milliseconds_bucket{$$__tags}[5m])) by (le))'
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: ""
