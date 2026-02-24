@@ -23,6 +23,8 @@ import (
 )
 
 func main() {
+	telemetry.InitLogger()
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 

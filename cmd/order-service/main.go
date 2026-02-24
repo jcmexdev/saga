@@ -20,10 +20,11 @@ import (
 )
 
 func main() {
+	telemetry.InitLogger()
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// ── Telemetry ────────────────────────────────────────────────────────────
 	shutdown, err := telemetry.SetupTracer(ctx, getEnv("OTEL_SERVICE_NAME", "order-service"))
 	if err != nil {
 		slog.Error("failed to initialise tracer", "error", err)

@@ -28,7 +28,10 @@ datasources:
       nodeGraph:
         enabled: true
       tracesToLogsV2:
-        datasourceUid: ""           # set to Loki uid if you add Loki later
+        datasourceUid: loki         # Link Tempo to Loki
+        resourceByLabel: true       # Use resource attributes as Loki labels
+        customQuery: true
+        query: '{service_name="$$${__span.resource.service.name}"} |= "$$${__span.traceId}"'
       tracesToMetrics:
         datasourceUid: prometheus
         tags:
@@ -44,4 +47,17 @@ datasources:
       search:
         hide: false
       lokiSearch:
-        datasourceUid: ""
+        datasourceUid: loki
+
+  # ── Loki ─────────────────────────────────────────────────────────────────────
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: "trace_id=([0-9a-f]+)"
+          name: TraceID
+          url: "$${__value.raw}"

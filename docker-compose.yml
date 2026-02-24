@@ -154,6 +154,27 @@ services:
       - "3200:3200"
       - "4317"
     restart: unless-stopped
+  
+  loki:
+    image: grafana/loki:3.4.2
+    container_name: loki
+    networks: [ecommerce]
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: promtail
+    networks: [ecommerce]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./observability/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    depends_on:
+      - loki
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:11.5.2
