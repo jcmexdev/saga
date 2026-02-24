@@ -1,165 +1,135 @@
-# ecommerce-sagas
+# Ecommerce Saga Orchestration Engine
 
-A comprehensive learning project demonstrating the **Saga Orchestration** pattern in a Go microservices architecture, featuring Distributed Tracing, Metrics, and a durable Saga Log.
+A high-performance, distributed transaction system built in Go, demonstrating the **Saga Orchestrator** pattern. This project serves as a technical showcase for scalable microservices architecture, featuring "exactly-once" semantics via idempotency, robust observability, and contract-first gRPC communication.
 
-![Go](https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white)
-![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
-![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)
-![SQLite](https://img.shields.io/badge/sqlite-%2307405e.svg?style=for-the-badge&logo=sqlite&logoColor=white)
-![Grafana](https://img.shields.io/badge/grafana-%23F46800.svg?style=for-the-badge&logo=grafana&logoColor=white)
-![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=Prometheus&logoColor=white)
+[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![gRPC](https://img.shields.io/badge/gRPC-Protobuf-00ADD8?style=flat&logo=grpc)](https://grpc.io)
+[![OpenTelemetry](https://img.shields.io/badge/Tracing-OpenTelemetry-F46800?style=flat&logo=opentelemetry)](https://opentelemetry.io)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## 🏗 Architecture
+---
 
-The system consists of four domain services communicating over gRPC, coordinated by an API Gateway. It uses a robust observability stack and a durable log for the orchestration state.
+## 🏗 Architecture & Design Decisions
+
+### Asynchronous Distributed Transactions: Saga Orchestrator
+In a distributed system, maintaining atomicity across microservices is a challenge. This project implements a **non-blocking Saga Orchestration** pattern to optimize User Experience and system throughput:
+
+- **Decoupled Lifecycle**: The API Gateway acknowledges the request immediately after persisting a `PENDING` order, returning a `201 Created` response.
+- **Goroutine-based Processing**: The orchestration logic is offloaded to a background goroutine. We utilize `context.WithoutCancel(r.Context())` to ensure the Saga completes its lifecycle even if the initial HTTP client disconnects.
+- **Centralized Logic**: The Orchestrator manages the global state and complex business workflows, making it easier to reason about the system compared to event-based choreography.
+
+#### The Transaction Flow
+The orchestrator executes a sequence of "Local Transactions". If a step fails, it triggers **Compensating Actions** in LIFO (Last-In, First-Out) order to restore system consistency.
 
 ```mermaid
-graph TD
-    Client[Customer] -->|HTTP POST| Gateway[API Gateway / Orchestrator]
+sequenceDiagram
+    participant C as Client
+    participant G as API Gateway (Orchestrator)
+    participant I as Inventory Service
+    participant P as Payment Service
+    participant O as Order Service
+
+    C->>G: POST /orders
+    G->>G: Persist Order (Status: PENDING)
+    G-->>C: 201 Created (ID & Initial Status)
     
-    subgraph "Microservices Cluster"
-        Gateway -->|gRPC| Order[Order Service]
-        Gateway -->|gRPC| Inventory[Inventory Service]
-        Gateway -->|gRPC| Payment[Payment Service]
-    end
-
-    subgraph "Data & State"
-        Redis[(Redis Cache)]
-        SQLite[(Saga Log SQLite)]
-        Gateway -.->|Idempotency| Redis
-        Order -.->|Idempotency| Redis
-        Inventory -.->|Idempotency| Redis
-        Payment -.->|Idempotency| Redis
-        Gateway -->|Audit/Recovery| SQLite
-    end
-
-    subgraph "Observability Stack"
-        OTel[OTel Collector]
-        Gateway -.->|Traces/Metrics| OTel
-        Order -.->|Traces/Metrics| OTel
-        Inventory -.->|Traces/Metrics| OTel
-        Payment -.->|Traces/Metrics| OTel
-        
-        Prometheus[Prometheus]
-        Tempo[Tempo]
-        Grafana[Grafana]
-        
-        OTel --> Prometheus
-        OTel --> Tempo
-        Prometheus --> Grafana
-        Tempo --> Grafana
+    Note over G: Background Goroutine Starts
+    
+    G->>I: gRPC: Reserve Stock
+    alt Inventory Success
+        G->>P: gRPC: Process Payment
+        alt Payment Success
+            G->>O: gRPC: Confirm Order (Status: CONFIRMED)
+        else Payment Fails
+            G->>I: gRPC: Release Stock (Compensate)
+            G->>O: gRPC: Cancel Order (Compensate)
+        end
+    else Inventory Fails
+        G->>O: gRPC: Cancel Order (Compensate)
     end
 ```
 
+### High-Performance Communication: gRPC & Protobuf
+The services communicate internally using **gRPC** instead of REST/JSON.
+- **Binary Serialization**: Protobuf provides significantly smaller payloads and faster serialization/deserialization than JSON, reducing CPU overhead.
+- **Strongly Typed Contracts**: Protobuf files serve as the single source of truth for service interfaces, ensuring compile-time safety and reducing integration bugs.
+- **HTTP/2**: Leverages multiplexing and header compression for lower latency and better throughput.
+
+### State Integrity: Idempotency & Redis
+To achieve "exactly-once" processing in an unreliable network, every write operation is guarded by an **Idempotency Layer**.
+- **Strategy**: Uses a `X-Idempotency-Key` provided by the client.
+- **Redis Integration**: Redis serves as a distributed, high-speed lock. A "fast-path" check prevents duplicate execution within a TTL window.
+- **Local Fallback**: An in-memory cache provides an additional safety layer to handle transient Redis failures without compromising consistency.
+
+### Durable Saga Log
+Every state transition is persisted in a **Durable Saga Log** (SQLite in WAL mode). This log correlates the business transaction ID with the **OTel Trace ID**, creating a bridge between database audits and distributed traces for seamless root-cause analysis.
+
+---
+
+## 🕵️‍♂️ Observability: Solving the "Black Box"
+
+The primary challenge of microservices is visibility. This project implements a full **OpenTelemetry (OTel)** stack to transform the "Black Box" into a transparent system.
+
+- **Distributed Tracing**: Automated context propagation (`traceparent`) across HTTP/gRPC boundaries. Using **Tempo**, we can visualize the entire lifecycle of a request, including network latency and internal logic.
+- **Correlated Logs**: Distributed logs are enriched with Trace IDs, allowing developers to pivot from a specific database audit entry directly to its corresponding trace in Grafana.
+- **Metrics**: High-cardinality metrics are collected via Prometheus, providing real-time visibility into Saga success/failure rates and service health.
+
+---
+
+## 🛠 Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Language** | Go 1.24+ (Generics, `slog`, `ctx.WithoutCancel`) |
+| **Transport** | gRPC / Protocol Buffers (Internal), HTTP/JSON (External) |
+| **State & Cache** | Redis (Idempotency), SQLite (Saga Log) |
+| **Frameworks** | Chi (HTTP Routing), gRPC-go |
+| **Observability** | OpenTelemetry, Prometheus, Tempo, Grafana |
+| **DevOps** | Docker, Docker Compose |
+
+---
+
 ## 🚀 Getting Started
 
-### Prerequisites
+### 1. Requirements
 - Docker & Docker Compose
-- Go 1.24+ (optional, for local development)
+- `curl` or any API client
 
-### One-Command Start
-Run the entire stack (apps + transparency tools):
-
+### 2. Launch the Stack
 ```bash
 docker compose up --build
 ```
 
-### 🔍 Access the Dashboards
+### 3. Monitoring Dashboards
+- **Grafana**: [http://localhost:3000](http://localhost:3000) (Traces, Metrics, Dashboards)
+- **Prometheus**: [http://localhost:9090](http://localhost:9090) (Raw Metrics)
+- **API Gateway**: [http://localhost:8080](http://localhost:8080)
 
-Once running, access the following services:
-
-| Service | URL | Description |
-|---|---|---|
-| **Grafana** | [http://localhost:3000](http://localhost:3000) | **Main Dashboard**. View Traces & Metrics. (No login required) |
-| **Prometheus** | [http://localhost:9090](http://localhost:9090) | Raw metrics and query explorer. |
-| **API Gateway** | [http://localhost:8080](http://localhost:8080) | The entry point for your requests. |
-
-> **Tip:** In Grafana, go to **Explore**, select the **Tempo** datasource, and verify traces are arriving. Or check the pre-provisioned dashboards.
-
----
-
-## 🧪 How to Use
-
-### 1. Happy Path: Create a Successful Order
-Creates an order, reserves stock, and processes payment.
-
+### 4. Integration Testing
+**Success Path (Purchase Flow):**
 ```bash
 curl -X POST http://localhost:8080/orders \
   -H "Content-Type: application/json" \
-  -H "X-Idempotency-Key: unique-key-001" \
+  -H "X-Idempotency-Key: task-001" \
   -d '{
     "customer_id": "cust_123",
-    "items": [
-      {"product_id": "prod_1", "quantity": 2, "price": 50.00},
-      {"product_id": "prod_2", "quantity": 1, "price": 30.00}
-    ]
+    "items": [{"product_id": "prod_1", "quantity": 1, "price": 50.00}]
   }'
 ```
 
-### 2. Failure Path: Trigger a Saga Rollback
-Fails at the Payment step (Amount > $500), triggering compensation (Stock Release + Order Cancellation).
-
+**Compensation Path (Trigger Rollback):**
+Trigger a failure at the payment step (amount > $500).
 ```bash
 curl -X POST http://localhost:8080/orders \
   -H "Content-Type: application/json" \
-  -H "X-Idempotency-Key: unique-key-fail-002" \
+  -H "X-Idempotency-Key: fail-001" \
   -d '{
-    "customer_id": "cust_456",
-    "items": [
-      {"product_id": "prod_1", "quantity": 1, "price": 600.00}
-    ]
+    "customer_id": "cust_123",
+    "items": [{"product_id": "prod_1", "quantity": 1, "price": 600.00}]
   }'
 ```
 
-### 3. Check Order Status
-```bash
-# Replace {order_id} with the ID returned from the creation step
-curl http://localhost:8080/orders/{order_id}
-```
-
 ---
 
-## 🧩 Key Patterns Implemented
-
-### 🔄 Saga Orchestration
-The **API Gateway** acts as the Orchestrator. It executes steps sequentially:
-1.  **Inventory**: Reserve Stock
-2.  **Payment**: Charge
-3.  **Order**: Confirm
-
-If any step fails, it executes **Compensating Actions** in reverse order (e.g., Refund Payment, Release Stock, Cancel Order).
-
-### 🛡 Idempotency
-Every write operation (Reserve, Charge, Create) is idempotent.
--   **Implementation**: Uses **Redis** as a fast-path lock and in-memory maps as a fallback.
--   **Header**: `X-Idempotency-Key` ensures safe retries.
-
-### 📝 Saga Log (Audit & Recovery)
-A durable log of every state transition is stored in **SQLite** (WAL mode).
--   **Purpose**: Debugging and recovering crashed sagas.
--   **Correlation**: Each log entry includes the **Trace ID**, linking the database row directly to the OTel distributed trace.
-
-### 🕵️‍♂️ Distributed Tracing (OpenTelemetry)
-Trace context (`traceparent`) is propagated automatically across HTTP and gRPC boundaries.
--   **Logs correlation**: `slog` logs are correlated with Trace IDs.
--   **Visualisation**: View the full request lifecycle in **Grafana Tempo**.
-
----
-
-## 📂 Project Structure
-
-```bash
-.
-├── cmd/                    # Main entry points
-│   ├── api-gateway/        # Orchestrator & HTTP Server
-│   ├── order-service/      # gRPC Service
-│   ├── inventory-service/  # gRPC Service
-│   └── payment-service/    # gRPC Service
-├── internal/
-│   ├── coordinator/        # Saga Logic & Steps definition
-│   │   └── sagalog/        # SQLite Repository for Saga Audit
-│   ├── pkg/                # Shared libs (Interceptor, Redis, OTel)
-│   └── ...                 # Domain logic per service
-├── observability/          # Configs for OTel, Prometheus, Tempo, Grafana
-└── docker-compose.yml      # Orchestration of all services
-```
+## 📄 License
+Detailed license information is available in the [LICENSE](LICENSE) file. (MIT)
